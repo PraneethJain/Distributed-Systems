@@ -1,27 +1,9 @@
-use csv;
 use kmeans_mapreduce::{
-    combine_assignment_files, convert_flat_to_points, find_nearest_center,
+    combine_assignment_files, convert_flat_to_points, find_nearest_center, read_points_from_txt,
     squared_euclidean_distance, write_assignments, write_centers, Point,
 };
 use mpi::traits::*;
 use std::error::Error;
-
-fn read_points_from_csv(path: &str) -> Vec<Point> {
-    csv::ReaderBuilder::new()
-        .has_headers(false)
-        .from_path(path)
-        .expect("Failed to open CSV file")
-        .records()
-        .filter_map(|result| {
-            result.ok().map(|record| {
-                record
-                    .iter()
-                    .map(|s| s.parse::<f64>().expect("Failed to parse float"))
-                    .collect::<Point>()
-            })
-        })
-        .collect()
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let universe = mpi::initialize().unwrap();
@@ -29,10 +11,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rank = world.rank() as usize;
     let size = world.size() as usize;
 
-    let num_points = 1000;
-    let num_centers = 5;
-    let dimensions = 2;
-    let max_iterations = 100;
+    let num_points = 4;
+    let num_centers = 2;
+    let dimensions = 3;
+    let max_iterations = 3;
     let tolerance = 1e-4;
 
     let local_points = scatter_points_to_workers(&world, rank, size, num_points, dimensions)?;
@@ -101,7 +83,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             rank,
             iteration + 1
         );
-        write_assignments(&local_points, &final_assignments, rank, "output")?;
+        write_assignments(&local_points, &final_assignments, rank, "output/sample")?;
     } else {
         println!(
             "Process {}: Reached max iterations ({})",
@@ -110,8 +92,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if rank == 0 {
-        write_centers(&centers, "output")?;
-        combine_assignment_files(size, "output")?;
+        write_centers(&centers, "output/sample")?;
+        combine_assignment_files(size, "output/sample")?;
     }
 
     Ok(())
@@ -131,8 +113,8 @@ fn scatter_points_to_workers(
     let mut local_buffer = vec![0.0; total_elements_per_worker];
 
     if rank == 0 {
-        let points_path = "input/points.csv";
-        let all_points = read_points_from_csv(points_path);
+        let points_path = "input/sample/points.txt";
+        let all_points = read_points_from_txt(points_path);
 
         assert_eq!(all_points.len(), total_points, "Total points mismatch");
         assert_eq!(all_points[0].len(), dimensions, "Point dimension mismatch");
@@ -166,8 +148,8 @@ fn broadcast_centers(
     let mut buffer = vec![0.0; total_elements];
 
     if rank == 0 {
-        let centers_path = "input/centers.txt";
-        let centers = read_points_from_csv(centers_path);
+        let centers_path = "input/sample/centers.txt";
+        let centers = read_points_from_txt(centers_path);
 
         assert_eq!(centers.len(), num_centers, "Number of centers mismatch");
         assert_eq!(centers[0].len(), dimensions, "Center dimension mismatch");

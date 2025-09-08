@@ -1,7 +1,43 @@
 pub type Point = Vec<f64>;
 use std::error::Error;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use csv;
 
 mod output;
+
+pub fn read_points_from_csv(path: &str) -> Vec<Point> {
+    csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(path)
+        .expect("Failed to open CSV file")
+        .records()
+        .filter_map(|result| {
+            result.ok().map(|record| {
+                record
+                    .iter()
+                    .map(|s| s.parse::<f64>().expect("Failed to parse float"))
+                    .collect::<Point>()
+            })
+        })
+        .collect()
+}
+
+pub fn read_points_from_txt(path: &str) -> Vec<Point> {
+    println!("Reading points from TXT file: {}", path);
+    let file = File::open(path).expect("Failed to open TXT file");
+    let reader = BufReader::new(file);
+
+    reader
+        .lines()
+        .filter_map(|line| line.ok())
+        .map(|line| {
+            line.split_whitespace()
+                .map(|s| s.parse::<f64>().expect("Failed to parse float"))
+                .collect::<Point>()
+        })
+        .collect()
+}
 
 pub fn convert_flat_to_points(
     flat_data: &[f64],
@@ -83,7 +119,10 @@ pub fn write_centers(centers: &[Point], output_dir: &str) -> Result<(), Box<dyn 
     Ok(())
 }
 
-pub fn combine_assignment_files(num_processes: usize, output_dir: &str) -> Result<(), Box<dyn Error>> {
+pub fn combine_assignment_files(
+    num_processes: usize,
+    output_dir: &str,
+) -> Result<(), Box<dyn Error>> {
     use std::fs::{remove_file, File};
     use std::io::{BufRead, BufReader, Write};
 
