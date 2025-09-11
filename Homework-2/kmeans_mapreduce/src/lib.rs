@@ -83,7 +83,7 @@ pub fn write_centers(centers: &[Point], output_dir: &str) -> Result<(), Box<dyn 
     use std::io::Write;
 
     create_dir_all(output_dir)?;
-    let filename = format!("{}/final_centers.txt", output_dir);
+    let filename = format!("{}/centers.txt", output_dir);
     let mut file = std::fs::File::create(&filename)?;
 
     for center in centers {
@@ -106,7 +106,7 @@ pub fn combine_assignment_files(
     use std::fs::{remove_file, File};
     use std::io::{BufRead, BufReader, Write};
 
-    let combined_filename = format!("{}/final_assignments.txt", output_dir);
+    let combined_filename = format!("{}/mapping.txt", output_dir);
     let mut combined_file = File::create(&combined_filename)?;
 
     let mut total_assignments = 0;
