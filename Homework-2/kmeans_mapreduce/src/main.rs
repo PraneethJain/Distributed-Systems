@@ -40,10 +40,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut iteration = 0;
     let final_assignments = loop {
-        println!("Process {}: Starting iteration {}", rank, iteration);
+        if rank == 0 {
+            // println!("Process {}: Starting iteration {}", rank, iteration);
+        }
+
+        world.barrier(); // Synchronize before starting map phase timing
+        let map_start = std::time::Instant::now();
+
         // MAP PHASE
         let (local_assignments, local_sums, local_counts) =
             map_and_combine(&local_points, &centers, num_centers, dimensions);
+
+        world.barrier(); // Synchronize before stopping map phase timing
+        let map_duration = map_start.elapsed();
+        if rank == 0 {
+            println!("[METRICS] map_time_ms={}", map_duration.as_millis());
+        }
+
+        world.barrier(); // Synchronize before starting reduce phase timing
+        let reduce_start = std::time::Instant::now();
 
         // REDUCE PHASE (only master gets global results)
         let global_results = reduce_phase(
@@ -54,6 +69,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             num_centers,
             dimensions,
         )?;
+
+        world.barrier(); // Synchronize after reduce phase
+        let reduce_duration = reduce_start.elapsed();
+        if rank == 0 {
+            println!("[METRICS] reduce_time_ms={}", reduce_duration.as_millis());
+        }
 
         // MASTER: Compute new centers and check convergence
         let (new_centers, converged) = if rank == 0 {
@@ -228,27 +249,6 @@ fn reduce_phase(
             );
         }
 
-        // Verification prints (only master)
-        let total_points: i32 = global_counts.iter().sum();
-        println!(
-            "Master: Global reduce complete - total points: {}",
-            total_points
-        );
-
-        for cluster in 0..num_centers {
-            println!(
-                "Master: Cluster {} has {} total points",
-                cluster, global_counts[cluster]
-            );
-            if global_counts[cluster] > 0 {
-                println!(
-                    "Master: Cluster {} sum: {:?}",
-                    cluster,
-                    &global_sums[cluster][..2.min(dimensions)]
-                );
-            }
-        }
-
         Ok(Some((global_sums, global_counts)))
     } else {
         // Workers: send their local data to master
@@ -264,7 +264,7 @@ fn reduce_phase(
             );
         }
 
-        println!("Process {}: Sent local data to master for reduction", rank);
+        // println!("Process {}: Sent local data to master for reduction", rank);
         Ok(None)
     }
 }
@@ -297,18 +297,18 @@ fn compute_new_centers_and_check_convergence(
 
     // Check convergence
     let mut converged = true;
-    for (cluster, (old, new)) in old_centers.iter().zip(new_centers.iter()).enumerate() {
+    for (_cluster, (old, new)) in old_centers.iter().zip(new_centers.iter()).enumerate() {
         let distance = squared_euclidean_distance(old, new);
-        println!(
-            "Master: Cluster {} center moved by distance: {:.6}",
-            cluster, distance
-        );
+        // println!(
+        //     "Master: Cluster {} center moved by distance: {:.6}",
+        //     _cluster, distance
+        // );
         if distance > tolerance {
             converged = false;
         }
     }
 
-    println!("Master: Convergence check - converged: {}", converged);
+    // println!("Master: Convergence check - converged: {}", converged);
     (new_centers, converged)
 }
 
@@ -331,7 +331,7 @@ fn broadcast_centers_and_convergence(
             .flat_map(|point| point.iter().cloned())
             .collect();
         buffer.copy_from_slice(&flat_centers);
-        println!("Master: Broadcasting new centers");
+        // println!("Master: Broadcasting new centers");
     }
 
     world.process_at_rank(0).broadcast_into(&mut buffer);
@@ -341,12 +341,12 @@ fn broadcast_centers_and_convergence(
     let mut converged_buf = if rank == 0 { converged.unwrap() } else { false };
     world.process_at_rank(0).broadcast_into(&mut converged_buf);
 
-    if rank != 0 {
-        println!(
-            "Process {}: Received new centers and convergence status: {}",
-            rank, converged_buf
-        );
-    }
+    // if rank != 0 {
+    //     println!(
+    //         "Process {}: Received new centers and convergence status: {}",
+    //         rank, converged_buf
+    //     );
+    // }
 
     Ok((centers, converged_buf))
 }

@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load data
-points = np.loadtxt('input/points.csv', delimiter=',')
-centers = np.loadtxt('output/final_centers.txt', delimiter=',')
-assignments = np.loadtxt('output/final_assignments.txt', delimiter=',', dtype=int)
+points = np.loadtxt('input/sample/points.txt', delimiter=' ')
+centers = np.loadtxt('output/sample/centers.txt', delimiter=' ')
+assignments = np.loadtxt('output/sample/mapping.txt', delimiter=' ', dtype=int)[:,::-1]
 
 # Sort assignments by point ID
 sorted_assignments = assignments[np.argsort(assignments[:, 0]), 1]
