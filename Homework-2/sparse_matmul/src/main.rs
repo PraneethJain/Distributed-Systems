@@ -68,10 +68,14 @@ fn main() {
         b_matrix = receive_b_matrix(&world, dims[1]);
     }
 
+    let start = std::time::Instant::now();
+
     let local_c_rows = multiply_local_sparse(&local_a_rows, &b_matrix);
 
     if rank == 0 {
         gather_and_print_c_matrix(&world, local_c_rows, dims[0]);
+        let duration = start.elapsed();
+        eprintln!("ExecutionTime: {:.6}", duration.as_secs_f64());
     } else {
         send_c_rows_to_root(&world, &local_c_rows);
     }
