@@ -12,8 +12,8 @@ try:
 except ImportError:
     SCIPY_AVAILABLE = False
 
-RESULTS_CSV = "scaling_results.csv"
-PLOTS_DIR = "plots"
+RESULTS_CSV = "slurm_scaling_results.csv"
+PLOTS_DIR = "slurm_plots"
 
 
 def analyze_and_plot(results_file):
