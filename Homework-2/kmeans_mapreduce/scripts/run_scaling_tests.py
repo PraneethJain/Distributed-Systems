@@ -9,7 +9,7 @@ KMEANS_BINARY = "./target/release/kmeans_mapreduce"
 OUTPUT_DIR_BASE = "./output/generated"
 TEST_DATA_DIR = "./input/generated"
 RESULTS_CSV = "scaling_results.csv"
-MAX_ITERATIONS = 100
+MAX_ITERATIONS = 10000
 
 core_counts = [1, 2, 4, 8]
 
