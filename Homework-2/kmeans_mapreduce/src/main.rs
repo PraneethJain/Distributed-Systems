@@ -11,9 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rank = world.rank() as usize;
     let size = world.size() as usize;
 
-    let num_points = 4;
-    let num_centers = 2;
-    let dimensions = 3;
+    let (num_points, num_centers, dimensions) = broadcast_parameters(&world, rank)?;
     let max_iterations = 3;
     let tolerance = 1e-4;
 
@@ -116,13 +114,7 @@ fn scatter_points_to_workers(
         let points_path = "input/sample/points.txt";
         let all_points = read_points_from_txt(points_path);
 
-        assert_eq!(all_points.len(), total_points, "Total points mismatch");
-        assert_eq!(all_points[0].len(), dimensions, "Point dimension mismatch");
-
-        let mut flat_points: Vec<f64> = all_points
-            .iter()
-            .flat_map(|point| point.iter().cloned())
-            .collect();
+        let mut flat_points: Vec<f64> = all_points.into_iter().flat_map(|point| point).collect();
         flat_points.resize(total_elements, 0.0);
         world
             .process_at_rank(0)
@@ -151,13 +143,7 @@ fn broadcast_centers(
         let centers_path = "input/sample/centers.txt";
         let centers = read_points_from_txt(centers_path);
 
-        assert_eq!(centers.len(), num_centers, "Number of centers mismatch");
-        assert_eq!(centers[0].len(), dimensions, "Center dimension mismatch");
-
-        let flat_centers: Vec<f64> = centers
-            .iter()
-            .flat_map(|point| point.iter().cloned())
-            .collect();
+        let flat_centers: Vec<f64> = centers.into_iter().flat_map(|point| point).collect();
 
         buffer.copy_from_slice(&flat_centers);
     }
@@ -343,4 +329,32 @@ fn broadcast_centers_and_convergence(
     }
 
     Ok((centers, converged_buf))
+}
+
+fn broadcast_parameters(
+    world: &mpi::topology::SimpleCommunicator,
+    rank: usize,
+) -> Result<(usize, usize, usize), Box<dyn Error>> {
+    let mut params = [0, 0, 0];
+
+    if rank == 0 {
+        let points = read_points_from_txt("input/sample/points.txt");
+        let centers = read_points_from_txt("input/sample/centers.txt");
+
+        let num_points = points.len();
+        let num_centers = centers.len();
+        let dimensions = if !points.is_empty() {
+            points[0].len()
+        } else if !centers.is_empty() {
+            centers[0].len()
+        } else {
+            0
+        };
+
+        params = [num_points, num_centers, dimensions];
+    }
+
+    world.process_at_rank(0).broadcast_into(&mut params);
+
+    Ok((params[0], params[1], params[2]))
 }
