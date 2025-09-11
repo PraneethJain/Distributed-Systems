@@ -1,0 +1,61 @@
+// proto/matrix.proto
+
+syntax = "proto3";
+
+package matrix;
+
+// The main service definition.
+service MatrixService {
+  // A bidirectional stream for clients to send rows and queries.
+  rpc Interact(stream ClientRequest) returns (stream ServerResponse);
+
+  // A Unary RPC to reset the server's state.
+  rpc Reset(ResetRequest) returns (ResetResponse);
+}
+
+// A client can send either a row or a query.
+message ClientRequest {
+  oneof command {
+    Row row = 1;
+    RankQuery rank_query = 2;
+    DeterminantQuery det_query = 3;
+  }
+}
+
+// Represents a single row of the matrix.
+message Row {
+  repeated double values = 1;
+}
+
+// Query to check if the rank is at least `r`.
+message RankQuery {
+  int32 r = 1;
+}
+
+// Query to check if the determinant is at least `d`.
+message DeterminantQuery {
+  double d = 1;
+}
+
+// The server can send back a query result or an error.
+message ServerResponse {
+  oneof response {
+    QueryResult result = 1;
+    ServerError error = 2;
+  }
+}
+
+// The boolean result of a query.
+message QueryResult {
+  bool success = 1;
+  string description = 2; // A helpful description of the result
+}
+
+// A descriptive error message.
+message ServerError {
+  string message = 1;
+}
+
+// Empty messages for the Reset RPC.
+message ResetRequest {}
+message ResetResponse {}
