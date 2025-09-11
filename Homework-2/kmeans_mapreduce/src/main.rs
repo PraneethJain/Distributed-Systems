@@ -3,20 +3,40 @@ use kmeans_mapreduce::{
     squared_euclidean_distance, write_assignments, write_centers, Point,
 };
 use mpi::traits::*;
+use std::env;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let args: Vec<String> = env::args().collect();
+
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
     let rank = world.rank() as usize;
     let size = world.size() as usize;
 
-    let (num_points, num_centers, dimensions) = broadcast_parameters(&world, rank)?;
-    let max_iterations = 3;
+    if args.len() != 6 {
+        if rank == 0 {
+            eprintln!(
+                "Usage: {} <num_centers> <points_file> <centers_file> <max_iterations> <output_dir>",
+                args.get(0).map_or("kmeans_mapreduce", |s| s.as_str())
+            );
+        }
+        return Ok(());
+    }
+
+    let num_centers_arg: usize = args[1].parse()?;
+    let points_path = &args[2];
+    let centers_path = &args[3];
+    let max_iterations: usize = args[4].parse()?;
+    let output_dir = &args[5];
+
+    let (num_points, num_centers, dimensions) =
+        broadcast_parameters(&world, rank, points_path, centers_path, num_centers_arg)?;
     let tolerance = 1e-4;
 
-    let local_points = scatter_points_to_workers(&world, rank, size, num_points, dimensions)?;
-    let mut centers = broadcast_centers(&world, rank, num_centers, dimensions)?;
+    let local_points =
+        scatter_points_to_workers(&world, rank, size, num_points, dimensions, points_path)?;
+    let mut centers = broadcast_centers(&world, rank, num_centers, dimensions, centers_path)?;
 
     let mut iteration = 0;
     let final_assignments = loop {
@@ -81,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             rank,
             iteration + 1
         );
-        write_assignments(&local_points, &final_assignments, rank, "output/sample")?;
+        write_assignments(&local_points, &final_assignments, rank, output_dir)?;
     } else {
         println!(
             "Process {}: Reached max iterations ({})",
@@ -90,8 +110,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if rank == 0 {
-        write_centers(&centers, "output/sample")?;
-        combine_assignment_files(size, "output/sample")?;
+        write_centers(&centers, output_dir)?;
+        combine_assignment_files(size, output_dir)?;
     }
 
     Ok(())
@@ -103,6 +123,7 @@ fn scatter_points_to_workers(
     size: usize,
     total_points: usize,
     dimensions: usize,
+    points_path: &str,
 ) -> Result<Vec<Point>, Box<dyn Error>> {
     let points_per_worker = total_points.div_ceil(size);
     let total_elements_per_worker = points_per_worker * dimensions;
@@ -111,7 +132,6 @@ fn scatter_points_to_workers(
     let mut local_buffer = vec![0.0; total_elements_per_worker];
 
     if rank == 0 {
-        let points_path = "input/sample/points.txt";
         let all_points = read_points_from_txt(points_path);
 
         let mut flat_points: Vec<f64> = all_points.into_iter().flat_map(|point| point).collect();
@@ -135,12 +155,12 @@ fn broadcast_centers(
     rank: usize,
     num_centers: usize,
     dimensions: usize,
+    centers_path: &str,
 ) -> Result<Vec<Point>, Box<dyn Error>> {
     let total_elements = num_centers * dimensions;
     let mut buffer = vec![0.0; total_elements];
 
     if rank == 0 {
-        let centers_path = "input/sample/centers.txt";
         let centers = read_points_from_txt(centers_path);
 
         let flat_centers: Vec<f64> = centers.into_iter().flat_map(|point| point).collect();
@@ -334,15 +354,22 @@ fn broadcast_centers_and_convergence(
 fn broadcast_parameters(
     world: &mpi::topology::SimpleCommunicator,
     rank: usize,
+    points_path: &str,
+    centers_path: &str,
+    num_centers_arg: usize,
 ) -> Result<(usize, usize, usize), Box<dyn Error>> {
     let mut params = [0, 0, 0];
 
     if rank == 0 {
-        let points = read_points_from_txt("input/sample/points.txt");
-        let centers = read_points_from_txt("input/sample/centers.txt");
+        let points = read_points_from_txt(points_path);
+        let centers = read_points_from_txt(centers_path);
 
         let num_points = points.len();
-        let num_centers = centers.len();
+        let num_centers = if !centers.is_empty() {
+            centers.len()
+        } else {
+            num_centers_arg
+        };
         let dimensions = if !points.is_empty() {
             points[0].len()
         } else if !centers.is_empty() {
