@@ -6,6 +6,7 @@ import sys
 import tempfile
 import os
 
+# RUST_EXECUTABLE_PATH = "./a.out"
 RUST_EXECUTABLE_PATH = "./target/release/sparse_matmul"
 MPI_RUN_COMMAND = "mpirun"
 NUM_MPI_PROCESSES = 8

@@ -72,10 +72,12 @@ fn main() {
 
     let local_c_rows = multiply_local_sparse(&local_a_rows, &b_matrix);
 
+    let duration = start.elapsed();
+    eprintln!("ExecutionTime: {:.6}", duration.as_secs_f64());
+
+
     if rank == 0 {
         gather_and_print_c_matrix(&world, local_c_rows, dims[0]);
-        let duration = start.elapsed();
-        eprintln!("ExecutionTime: {:.6}", duration.as_secs_f64());
     } else {
         send_c_rows_to_root(&world, &local_c_rows);
     }
@@ -132,21 +134,30 @@ fn scatter_a_matrix(world: &impl Communicator, a_matrix: &[SparseRow]) -> Vec<Sp
     for i in 1..size {
         let (start, end) = get_row_distribution(n, size, i);
         let rows_to_send = &a_matrix[start..end];
+
+        let flat_data: Vec<NonZero> = rows_to_send.iter().flatten().cloned().collect();
+        let row_lengths: Vec<i32> = rows_to_send.iter().map(|r| r.len() as i32).collect();
+
         world.process_at_rank(i).send(&(rows_to_send.len() as i32));
-        for row in rows_to_send {
-            world.process_at_rank(i).send(row.as_slice());
-        }
+        world.process_at_rank(i).send(row_lengths.as_slice());
+        world.process_at_rank(i).send(flat_data.as_slice());
     }
+
     let (start, end) = get_row_distribution(n, size, 0);
     a_matrix[start..end].to_vec()
 }
 
 fn receive_a_rows(world: &impl Communicator) -> Vec<SparseRow> {
     let (num_rows, _) = world.process_at_rank(0).receive::<i32>();
+    let (row_lengths, _) = world.process_at_rank(0).receive_vec::<i32>();
+    let (flat_data, _) = world.process_at_rank(0).receive_vec::<NonZero>();
+
     let mut local_a = Vec::with_capacity(num_rows as usize);
-    for _ in 0..num_rows {
-        let (row, _) = world.process_at_rank(0).receive_vec::<NonZero>();
-        local_a.push(row);
+    let mut pos = 0;
+    for &len in &row_lengths {
+        let end_pos = pos + len as usize;
+        local_a.push(flat_data[pos..end_pos].to_vec());
+        pos = end_pos;
     }
     local_a
 }
@@ -184,6 +195,7 @@ fn multiply_local_sparse(local_a: &[SparseRow], b_matrix: &[SparseRow]) -> Vec<S
         .iter()
         .map(|a_row| {
             let mut c_row_map: HashMap<i32, f64> = HashMap::new();
+
             for a_elem in a_row {
                 if let Some(b_row) = b_matrix.get(a_elem.col as usize) {
                     for b_elem in b_row {
@@ -191,22 +203,27 @@ fn multiply_local_sparse(local_a: &[SparseRow], b_matrix: &[SparseRow]) -> Vec<S
                     }
                 }
             }
-            c_row_map
+
+            // Convert and sort for consistent output
+            let mut result: Vec<NonZero> = c_row_map
                 .into_iter()
                 .filter(|&(_, val)| val.abs() > 1e-9)
                 .map(|(col, val)| NonZero { col, val })
-                .collect()
+                .collect();
+            result.sort_unstable_by_key(|elem| elem.col);
+            result
         })
         .collect()
 }
 
 fn send_c_rows_to_root(world: &impl Communicator, local_c_rows: &[SparseRow]) {
     let local_c_row_lengths: Vec<i32> = local_c_rows.iter().map(|r| r.len() as i32).collect();
+    let local_c_flat: Vec<NonZero> = local_c_rows.iter().cloned().flatten().collect();
+
+    world.process_at_rank(0).send(&(local_c_rows.len() as i32));
     world
         .process_at_rank(0)
         .send(local_c_row_lengths.as_slice());
-
-    let local_c_flat: Vec<NonZero> = local_c_rows.iter().cloned().flatten().collect();
     world.process_at_rank(0).send(local_c_flat.as_slice());
 }
 
@@ -220,6 +237,7 @@ fn gather_and_print_c_matrix(world: &impl Communicator, root_local_c: Vec<Sparse
     }
 
     for i in 1..size {
+        let (_num_rows, _) = world.process_at_rank(i).receive::<i32>();
         let (row_lengths, _) = world.process_at_rank(i).receive_vec::<i32>();
         let (data_flat, _) = world.process_at_rank(i).receive_vec::<NonZero>();
 
@@ -227,7 +245,9 @@ fn gather_and_print_c_matrix(world: &impl Communicator, root_local_c: Vec<Sparse
         let mut current_pos = 0;
         for (j, &len) in (start_worker..end_worker).zip(row_lengths.iter()) {
             let end_pos = current_pos + len as usize;
-            c_matrix[j] = data_flat[current_pos..end_pos].to_vec();
+            if j < c_matrix.len() {
+                c_matrix[j] = data_flat[current_pos..end_pos].to_vec();
+            }
             current_pos = end_pos;
         }
     }
