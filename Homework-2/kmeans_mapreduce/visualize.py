@@ -5,7 +5,9 @@ import numpy as np
 dataset = "generated/dataset_10"
 points = np.loadtxt(f"input/{dataset}/points.txt", delimiter=" ")
 centers = np.loadtxt(f"output/{dataset}_cores_8/centers.txt", delimiter=" ")
-assignments = np.loadtxt(f"output/{dataset}_cores_8/mapping.txt", delimiter=" ", dtype=int)[:, ::-1]
+assignments = np.loadtxt(
+    f"output/{dataset}_cores_8/mapping.txt", delimiter=" ", dtype=int
+)[:, ::-1]
 
 # Sort assignments by point ID
 sorted_assignments = assignments[np.argsort(assignments[:, 0]), 1]
