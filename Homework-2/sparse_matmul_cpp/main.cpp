@@ -51,7 +51,6 @@ int main(int argc, char **argv)
     vector<int> B_cols;
     vector<double> B_vals;
 
-    // ---------- Rank 0: read & flatten ----------
     if (rank == 0)
     {
         cin >> N >> M >> P;
@@ -81,7 +80,6 @@ int main(int argc, char **argv)
             }
     }
 
-    // ---------- Broadcast B ----------
     MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&P, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -99,7 +97,6 @@ int main(int argc, char **argv)
     MPI_Bcast(B_cols.data(), totB, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(B_vals.data(), totB, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    // ---------- Partition rows of A by nnz ----------
     vector<vector<int>> rowsForRank(size);
     if (rank == 0)
     {
@@ -132,7 +129,6 @@ int main(int argc, char **argv)
     else if (myCount > 0)
         MPI_Recv(myRows.data(), myCount, MPI_INT, 0, 11, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    // ---------- Ship actual A rows ----------
     vector<Row> myA;
     myA.reserve(myCount);
     if (rank == 0)
@@ -186,7 +182,6 @@ int main(int argc, char **argv)
         }
     }
 
-    // Precompute B row nnz
     vector<int> Bnnz(M);
     for (int i = 0; i < M; i++)
         Bnnz[i] = B_row_ptr[i + 1] - B_row_ptr[i];
@@ -197,7 +192,6 @@ int main(int argc, char **argv)
             if (a.col >= 0 && a.col < M)
                 est[i] += Bnnz[a.col];
 
-    // ---------- TIME ONLY PARALLEL MULTIPLY ----------
     MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
 
@@ -278,7 +272,6 @@ int main(int argc, char **argv)
     if (rank == 0)
         cerr << "ExecutionTime: " << maxT << " sec\n";
 
-    // ---------- Gather C ----------
     if (rank == 0)
     {
         vector<Row> Cres(N);
