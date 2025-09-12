@@ -59,14 +59,18 @@ A hybrid approach is used for the inner multiplication loop. Based on an estimat
 
 \subsection{Execution Details}
 \begin{itemize}
-    \item \textbf{Compilation Command:}
+    \item \textbf{Compilation Command:} The project is compiled using the MPI C++ wrapper with performance optimizations.
     \begin{lstlisting}[language=bash]
 mpic++ -O3 -march=native -std=c++17 main.cpp -o sparse_matmul_cpp
-    \end{lstlisting}
-    \item \textbf{Execution Command:}
+\end{lstlisting}
+    \item \textbf{Execution Command:} The program is run using \texttt{mpirun}, specifying the number of processes and the input file.
     \begin{lstlisting}[language=bash]
 mpirun -n <num_procs> --oversubscribe ./sparse_matmul_cpp <input_file>
-    \end{lstlisting}
+\end{lstlisting}
+    \begin{itemize}
+        \item \texttt{<num\_procs>}: The total number of MPI processes to launch.
+        \item \texttt{<input\_file>}: Path to the text file containing the sparse matrices A and B.
+    \end{itemize}
 \end{itemize}
 
 \subsection{Performance Evaluation}
@@ -157,15 +161,22 @@ The implementation simulates the MapReduce pattern over several iterations until
 
 \subsection{Execution Details}
 \begin{itemize}
-    \item \textbf{Build Command:}
+    \item \textbf{Build Command:} The project is built in release mode for performance using Cargo.
     \begin{lstlisting}[language=bash]
 cargo build --release
-    \end{lstlisting}
-    \item \textbf{Execution Command (from \texttt{run\_km\_mapreduce.sh}):}
+\end{lstlisting}
+    \item \textbf{Execution Command:} The compiled binary is executed with \texttt{mpirun}, providing several command-line arguments.
     \begin{lstlisting}[language=bash]
-mpirun -np <num_procs> target/release/kmeans_mapreduce <args>
-    \end{lstlisting}
-    The arguments specify the number of centers, input files, max iterations, and output directory.
+mpirun -np <num_procs> ./target/release/kmeans_mapreduce <num_centers> <points_file> <centers_file> <max_iter> <out_dir>
+\end{lstlisting}
+    \begin{itemize}
+        \item \texttt{<num\_procs>}: The number of MPI processes to use.
+        \item \texttt{<num\_centers>}: The number of clusters to find (K).
+        \item \texttt{<points\_file>}: Path to the file containing data points.
+        \item \texttt{<centers\_file>}: Path to the file with initial cluster centers.
+        \item \texttt{<max\_iter>}: The maximum number of iterations to perform.
+        \item \texttt{<out\_dir>}: The directory where output files will be saved.
+    \end{itemize}
 \end{itemize}
 
 \subsection{Performance Evaluation}
@@ -204,7 +215,7 @@ Performance was evaluated to show how the implementation scales with the number 
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{kmeans_mapreduce/slurm_plots/3d_performance_surface.png}
+    \includegraphics[width=0.6\textwidth]{kmeans_mapreduce/slurm_plots/3d_performance_surface.png}
     \caption{3D Performance Surface. This plot shows the relationship between the number of cores, the size of the dataset, and the execution time.}
 \end{figure}
 
@@ -266,15 +277,20 @@ The core performance feature is the caching mechanism.
 \end{enumerate}
 
 \subsection{Execution Details}
+The server and client are run as separate binaries from the same project.
 \begin{itemize}
-    \item \textbf{Run Server Command:}
+    \item \textbf{Run Server Command:} The server is started using Cargo and listens on `[::1]:50051`.
     \begin{lstlisting}[language=bash]
 cargo run --bin server
-    \end{lstlisting}
-    \item \textbf{Run Client Command:}
+\end{lstlisting}
+    \item \textbf{Run Client Command:} In a separate terminal, the client is run with a path to a matrix file and an optional ID.
     \begin{lstlisting}[language=bash]
-cargo run --bin client
-    \end{lstlisting}
+cargo run --bin client -- <path_to_matrix_file> [client_id]
+\end{lstlisting}
+    \begin{itemize}
+        \item \texttt{<path\_to\_matrix\_file>}: A text file where each line contains a space-separated row of numbers.
+        \item \texttt{[client\_id]}: An optional string to identify the client in server logs.
+    \end{itemize}
 \end{itemize}
 
 \subsection{Performance Evaluation}
