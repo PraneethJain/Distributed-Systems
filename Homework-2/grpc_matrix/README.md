@@ -1,76 +1,27 @@
-# Matrix gRPC Server
+# gRPC Matrix Calculation Server (Rust/Tonic)
 
-A high-performance gRPC server in Rust that builds matrices from client rows and efficiently answers queries using cached results.
+This project is a gRPC server written in Rust that provides a service for matrix calculations. A client can stream rows to build a matrix, and the server will compute and cache its rank and determinant for fast, repeated querying.
 
-## Features
+## How to Run
 
-- **Bidirectional streaming** for matrix construction and queries
-- **Automatic dimension detection** from first row
-- **Pre-calculation and caching** of rank and determinant upon matrix completion
-- **Thread-safe state management** using Arc<Mutex>
-- **Custom matrix operations** without external math libraries
-- **Reset functionality** to clear state and start new matrix
+The server and client are separate binaries.
 
-## Building and Running
+1.  **Run the Server:**
+    The server will start and listen on `[::1]:50051`.
+    ```bash
+    cargo run --bin server
+    ```
 
-### Prerequisites
+2.  **Run the Client:**
+    In a separate terminal, run the client, providing a path to a text file containing its part of the matrix.
 
-- Rust 1.70+ (stable)
-- Protocol Buffers compiler (protoc)
+    ```bash
+    cargo run --bin client -- <path_to_matrix_file> [client_id]
+    ```
+    -   `<path_to_matrix_file>`: A text file where each line contains a space-separated row of numbers. For example, you can use the `input/part1.txt` and `input/part2.txt` files.
+    -   `[client_id]`: An optional identifier for the client.
 
-### Build
-
-```bash
-cargo build --release
-```
-
-### Run Server
-
-```bash
-cargo run --bin server
-```
-
-### Run Client Example
-
-```bash
-cargo run --bin client
-```
-
-## Architecture
-
-- **server.rs**: Main gRPC server implementation with streaming handlers
-- **state.rs**: Thread-safe matrix state management
-- **matrix_ops.rs**: Custom implementations of rank (Gaussian elimination) and determinant (LU decomposition)
-- **client.rs**: Example client demonstrating all server features
-
-## Protocol
-
-The server exposes two RPC methods:
-
-1. **Interact** (Bidirectional Streaming): Handles row submissions and queries
-2. **Reset** (Unary): Clears the matrix state
-
-## Performance Optimizations
-
-- Rank and determinant are calculated **once** when the matrix is complete
-- All subsequent queries are answered from cached values
-- No unnecessary recalculations
-- Efficient matrix operations using in-place algorithms
-
-## Testing
-
-Run the test suite:
-
-```bash
-cargo test
-```
-
-## Example Usage
-
-The included client demonstrates:
-
-1. Building a 3x3 matrix row by row
-2. Querying rank and determinant
-3. Resetting the server state
-4. Building a new 2x2 matrix
-5. Batch operations with streaming
+    **Example:**
+    ```bash
+    cargo run --bin client -- input/part1.txt client_A
+    ```
